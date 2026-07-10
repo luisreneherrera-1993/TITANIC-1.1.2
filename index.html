@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Titanic ML · Del naufragio a los datos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ocean-deep:#061622;
+    --ocean-mid:#0b2a3d;
+    --ocean-line:#12405a;
+    --hologram:#3fe8d8;
+    --hologram-dim:#1c6e68;
+    --brass:#c9a66b;
+    --brass-dim:#8a7247;
+    --ink:#eaf3f4;
+    --ink-dim:#9fb6bd;
+    --danger:#e0625a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--ocean-deep);
+    color:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+    overflow-x:hidden;
+  }
+  h1,h2,h3,.display{ font-family:'Cormorant Garamond', serif; font-weight:700; letter-spacing:.01em; }
+  .mono{ font-family:'JetBrains Mono', monospace; }
+  a{ color:inherit; }
+
+  /* ---------- background texture ---------- */
+  .ocean-bg{
+    position:fixed; inset:0; z-index:-2;
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(63,232,216,.10), transparent 55%),
+      radial-gradient(ellipse at 90% 10%, rgba(201,166,107,.08), transparent 45%),
+      linear-gradient(180deg, var(--ocean-deep) 0%, var(--ocean-mid) 55%, var(--ocean-deep) 100%);
+  }
+  .grid-overlay{
+    position:fixed; inset:0; z-index:-1; opacity:.12; pointer-events:none;
+    background-image:
+      linear-gradient(var(--hologram) 1px, transparent 1px),
+      linear-gradient(90deg, var(--hologram) 1px, transparent 1px);
+    background-size:42px 42px;
+    mask-image: radial-gradient(ellipse at 50% 0%, black, transparent 70%);
+  }
+
+  /* ---------- nav ---------- */
+  nav{
+    position:sticky; top:0; z-index:50;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:20px 6vw;
+    background:rgba(6,22,34,.72);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(63,232,216,.15);
+  }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:'Cormorant Garamond',serif; font-size:1.35rem; font-weight:700;}
+  .brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--hologram); box-shadow:0 0 10px var(--hologram);}
+  nav ul{ display:flex; gap:34px; list-style:none; }
+  nav a{ text-decoration:none; font-size:.85rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-dim); transition:color .2s;}
+  nav a:hover{ color:var(--hologram); }
+
+  /* ---------- hero ---------- */
+  .hero{
+    min-height:92vh;
+    display:grid; grid-template-columns:1.1fr .9fr; align-items:center;
+    gap:40px; padding:6vw; position:relative;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--hologram);
+    letter-spacing:.18em; text-transform:uppercase; margin-bottom:18px; display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{ content:""; width:26px; height:1px; background:var(--hologram); }
+  .hero h1{ font-size:clamp(2.6rem, 5.2vw, 4.4rem); line-height:1.05; color:var(--ink); }
+  .hero h1 em{ font-style:normal; color:var(--hologram); }
+  .hero p.lead{ margin-top:22px; max-width:46ch; color:var(--ink-dim); font-size:1.08rem; line-height:1.65; }
+  .cta-row{ display:flex; gap:16px; margin-top:34px; flex-wrap:wrap; }
+  .btn{
+    padding:14px 26px; border-radius:2px; font-size:.85rem; letter-spacing:.04em;
+    text-decoration:none; font-weight:600; border:1px solid transparent; transition:all .25s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .btn-primary{ background:var(--hologram); color:var(--ocean-deep); }
+  .btn-primary:hover{ box-shadow:0 0 24px rgba(63,232,216,.55); transform:translateY(-1px);}
+  .btn-ghost{ border-color:var(--ocean-line); color:var(--ink); }
+  .btn-ghost:hover{ border-color:var(--hologram); color:var(--hologram); }
+
+  .stat-strip{ display:flex; gap:34px; margin-top:46px; flex-wrap:wrap; }
+  .stat{ border-left:2px solid var(--brass); padding-left:12px; }
+  .stat .num{ font-family:'JetBrains Mono',monospace; font-size:1.5rem; color:var(--brass); }
+  .stat .lbl{ font-size:.72rem; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.08em; }
+
+  /* ---------- AR hologram illustration ---------- */
+  .ar-stage{ position:relative; aspect-ratio:1/1; }
+  .ar-ring{ position:absolute; inset:0; border-radius:50%; border:1px solid rgba(63,232,216,.25); animation:spin 26s linear infinite;}
+  .ar-ring.r2{ inset:10%; border-color:rgba(201,166,107,.28); animation-duration:20s; animation-direction:reverse;}
+  .ar-ring.r3{ inset:22%; border-color:rgba(63,232,216,.4); animation-duration:14s; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @keyframes pulse{ 0%,100%{ opacity:.35;} 50%{ opacity:1;} }
+  .scanline{ position:absolute; inset:0; overflow:hidden; border-radius:50%; }
+  .scanline::after{
+    content:""; position:absolute; left:0; right:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--hologram), transparent);
+    box-shadow:0 0 12px var(--hologram);
+    animation:scan 3.4s ease-in-out infinite;
+  }
+  @keyframes scan{ 0%{ top:6%; } 50%{ top:92%; } 100%{ top:6%; } }
+
+  /* ---------- sections ---------- */
+  section{ padding:9vw 6vw; position:relative; }
+  .section-head{ max-width:640px; margin-bottom:52px; }
+  .kicker{ font-family:'JetBrains Mono',monospace; color:var(--brass); font-size:.78rem; letter-spacing:.16em; text-transform:uppercase; }
+  .section-head h2{ font-size:clamp(1.9rem,3.4vw,2.7rem); margin-top:12px; }
+  .section-head p{ color:var(--ink-dim); margin-top:14px; line-height:1.6; }
+
+  /* pipeline timeline (numbering justified: real sequential process) */
+  .pipeline{ display:grid; grid-template-columns:repeat(7,1fr); gap:14px; }
+  .pl-step{
+    border:1px solid var(--ocean-line); border-radius:4px; padding:20px 16px 22px;
+    background:linear-gradient(180deg, rgba(63,232,216,.04), transparent);
+    position:relative; min-height:190px;
+  }
+  .pl-step .idx{ font-family:'JetBrains Mono',monospace; color:var(--hologram-dim); font-size:.75rem; }
+  .pl-step h3{ font-size:1.05rem; margin-top:10px; color:var(--ink); font-family:'Space Grotesk',sans-serif; font-weight:600;}
+  .pl-step p{ font-size:.8rem; color:var(--ink-dim); margin-top:8px; line-height:1.5; }
+  .pl-step.active{ border-color:var(--hologram); box-shadow:0 0 22px rgba(63,232,216,.15); }
+
+  /* models */
+  .models{ display:grid; grid-template-columns:1fr 1fr; gap:26px; }
+  .model-card{
+    border:1px solid var(--ocean-line); border-radius:6px; padding:34px;
+    background:radial-gradient(circle at 100% 0%, rgba(63,232,216,.06), transparent 60%);
+  }
+  .model-card .tag{ font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--hologram); text-transform:uppercase; letter-spacing:.1em; }
+  .model-card h3{ font-size:1.7rem; margin-top:10px; }
+  .model-card p{ color:var(--ink-dim); margin-top:12px; line-height:1.6; font-size:.94rem; }
+  .metric-row{ display:flex; gap:26px; margin-top:24px; flex-wrap:wrap; }
+  .metric-row div{ font-family:'JetBrains Mono',monospace; }
+  .metric-row .v{ font-size:1.3rem; color:var(--brass); }
+  .metric-row .k{ font-size:.68rem; color:var(--ink-dim); text-transform:uppercase; }
+
+  /* AR gallery */
+  .gallery{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .gcard{ border:1px solid var(--ocean-line); border-radius:6px; overflow:hidden; background:var(--ocean-mid); }
+  .gcard .frame{ aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; background:
+      radial-gradient(circle at 50% 40%, rgba(63,232,216,.12), transparent 60%), var(--ocean-deep); }
+  .gcard .cap{ padding:16px 18px 20px; }
+  .gcard .cap .k{ font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--brass); text-transform:uppercase; letter-spacing:.08em;}
+  .gcard .cap p{ margin-top:6px; font-size:.85rem; color:var(--ink-dim); line-height:1.5; }
+
+  /* stack */
+  .stack-row{ display:flex; gap:14px; flex-wrap:wrap; }
+  .chip{ border:1px solid var(--ocean-line); padding:10px 18px; border-radius:30px; font-size:.82rem; font-family:'JetBrains Mono',monospace; color:var(--ink-dim); }
+  .chip b{ color:var(--hologram); font-weight:500; }
+
+  footer{
+    border-top:1px solid rgba(63,232,216,.15); padding:50px 6vw; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px;
+  }
+  footer p{ color:var(--ink-dim); font-size:.85rem; max-width:50ch; }
+  .foot-links{ display:flex; gap:26px; }
+  .foot-links a{ text-decoration:none; color:var(--ink-dim); font-size:.85rem; transition:color .2s; }
+  .foot-links a:hover{ color:var(--hologram); }
+
+  @media (max-width:920px){
+    .hero{ grid-template-columns:1fr; }
+    .pipeline{ grid-template-columns:repeat(2,1fr); }
+    .models{ grid-template-columns:1fr; }
+    .gallery{ grid-template-columns:1fr; }
+    nav ul{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ocean-bg"></div>
+<div class="grid-overlay"></div>
+
+<nav>
+  <div class="brand"><span class="dot"></span> TITANIC · ML</div>
+  <ul>
+    <li><a href="#lifecycle">Ciclo CRISP-ML</a></li>
+    <li><a href="#models">Modelos</a></li>
+    <li><a href="#ar">Visualización AR</a></li>
+    <li><a href="#stack">Stack</a></li>
+    <li><a href="#deploy">Despliegue</a></li>
+  </ul>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div>
+    <div class="eyebrow">Proyecto de Machine Learning Supervisado</div>
+    <h1>Un naufragio de 1912,<br><em>reconstruido en datos.</em></h1>
+    <p class="lead">
+      891 pasajeros, dos preguntas y dos modelos: ¿quién sobrevive y cuánto pagó por su boleto?
+      Este proyecto documenta el ciclo de vida completo — desde la comprensión del negocio hasta
+      el despliegue — bajo la metodología <b>CRISP-ML(Q)</b>.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#deploy">Ver cómo ejecutarlo →</a>
+      <a class="btn btn-ghost" href="#models">Explorar los modelos</a>
+    </div>
+    <div class="stat-strip">
+      <div class="stat"><div class="num">891</div><div class="lbl">Pasajeros</div></div>
+      <div class="stat"><div class="num">0.85</div><div class="lbl">Accuracy · Clasificación</div></div>
+      <div class="stat"><div class="num">0.88</div><div class="lbl">ROC-AUC</div></div>
+      <div class="stat"><div class="num">7</div><div class="lbl">Etapas CRISP-ML</div></div>
+    </div>
+  </div>
+
+  <div class="ar-stage">
+    <div class="ar-ring"></div>
+    <div class="ar-ring r2"></div>
+    <div class="ar-ring r3"></div>
+    <div class="scanline"></div>
+    <svg viewBox="0 0 400 400" style="position:absolute; inset:0;">
+      <!-- holographic ship wireframe -->
+      <g fill="none" stroke="#3fe8d8" stroke-width="1.1" opacity="0.9">
+        <path d="M90 230 Q200 260 310 230 L295 250 Q200 275 105 250 Z" />
+        <line x1="100" y1="230" x2="100" y2="150" stroke-dasharray="3 3" opacity=".6"/>
+        <line x1="300" y1="230" x2="300" y2="170" stroke-dasharray="3 3" opacity=".6"/>
+        <line x1="150" y1="230" x2="150" y2="120" stroke-dasharray="3 3" opacity=".5"/>
+        <line x1="200" y1="230" x2="200" y2="95"  opacity=".8"/>
+        <line x1="250" y1="230" x2="250" y2="140" stroke-dasharray="3 3" opacity=".5"/>
+        <rect x="182" y="88" width="36" height="10" opacity=".8"/>
+        <rect x="140" y="118" width="20" height="34" opacity=".5"/>
+        <rect x="240" y="138" width="20" height="34" opacity=".5"/>
+        <rect x="90" y="148" width="20" height="34" opacity=".5"/>
+        <rect x="290" y="168" width="20" height="34" opacity=".5"/>
+        <ellipse cx="200" cy="248" rx="128" ry="16" opacity=".35"/>
+      </g>
+      <g stroke="#c9a66b" stroke-width="1" opacity=".7">
+        <circle cx="200" cy="95" r="3" fill="#c9a66b"/>
+        <circle cx="150" cy="120" r="3" fill="#c9a66b"/>
+        <circle cx="250" cy="140" r="3" fill="#c9a66b"/>
+      </g>
+      <g font-family="JetBrains Mono, monospace" font-size="8" fill="#9fb6bd">
+        <text x="206" y="98">DECK-01</text>
+        <text x="156" y="123">CLASS · 1</text>
+        <text x="256" y="143">CLASS · 3</text>
+      </g>
+      <g font-family="JetBrains Mono, monospace" font-size="9" fill="#3fe8d8" opacity=".85">
+        <text x="18" y="40">SCAN://titanic.csv</text>
+        <text x="18" y="54" fill="#9fb6bd" font-size="8">passengers detected: 891</text>
+      </g>
+    </svg>
+  </div>
+</header>
+
+<!-- ============ LIFECYCLE ============ -->
+<section id="lifecycle">
+  <div class="section-head">
+    <div class="kicker">Metodología</div>
+    <h2>El ciclo de vida CRISP-ML(Q)</h2>
+    <p>Cada etapa está documentada dentro del cuaderno <code>titanic_crisp_ml.ipynb</code>, desde el planteamiento
+       del problema hasta el monitoreo posterior al despliegue.</p>
+  </div>
+  <div class="pipeline">
+    <div class="pl-step"><div class="idx">01</div><h3>Negocio</h3><p>Definir el problema de supervivencia y tarifa, y los criterios de éxito.</p></div>
+    <div class="pl-step"><div class="idx">02</div><h3>Datos</h3><p>EDA: distribución de clases, valores faltantes, correlaciones.</p></div>
+    <div class="pl-step"><div class="idx">03</div><h3>Preparación</h3><p>Imputación, codificación, escalado e ingeniería de variables.</p></div>
+    <div class="pl-step active"><div class="idx">04</div><h3>Modelado</h3><p>Regresión Logística y Regresión Lineal con pipelines de sklearn.</p></div>
+    <div class="pl-step"><div class="idx">05</div><h3>Evaluación</h3><p>Accuracy, ROC-AUC, F1 · MAE, RMSE, R².</p></div>
+    <div class="pl-step"><div class="idx">06</div><h3>Despliegue</h3><p>App en Streamlit + Landing Page + repositorio en GitHub.</p></div>
+    <div class="pl-step"><div class="idx">07</div><h3>Monitoreo</h3><p>Reentrenamiento y trazabilidad de versiones del modelo.</p></div>
+  </div>
+</section>
+
+<!-- ============ MODELS ============ -->
+<section id="models">
+  <div class="section-head">
+    <div class="kicker">Aprendizaje supervisado</div>
+    <h2>Dos modelos, dos preguntas</h2>
+    <p>Ambos se implementan como <code>Pipeline</code> de scikit-learn con preprocesamiento incorporado,
+       listos para servir predicciones en tiempo real desde Streamlit.</p>
+  </div>
+  <div class="models">
+    <div class="model-card">
+      <div class="tag">Clasificación</div>
+      <h3>Regresión Logística</h3>
+      <p>Predice si un pasajero <b>sobrevive</b> (0/1) a partir de clase, sexo, edad, tamaño familiar y tarifa.
+         Usa codificación one-hot, imputación por mediana/moda y escalado estándar.</p>
+      <div class="metric-row">
+        <div><div class="v">0.85</div><div class="k">Accuracy</div></div>
+        <div><div class="v">0.88</div><div class="k">ROC-AUC</div></div>
+        <div><div class="v">0.80</div><div class="k">F1-score</div></div>
+      </div>
+    </div>
+    <div class="model-card">
+      <div class="tag">Regresión</div>
+      <h3>Regresión Lineal</h3>
+      <p>Estima la <b>tarifa (Fare)</b> pagada por un pasajero a partir de su clase, edad, puerto de embarque
+         y composición familiar. Sirve como ejercicio de valoración/pricing.</p>
+      <div class="metric-row">
+        <div><div class="v">£18.9</div><div class="k">MAE</div></div>
+        <div><div class="v">£30.9</div><div class="k">RMSE</div></div>
+        <div><div class="v">0.38</div><div class="k">R²</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ AR GALLERY ============ -->
+<section id="ar">
+  <div class="section-head">
+    <div class="kicker">Impacto visual</div>
+    <h2>Realidad Aumentada aplicada al análisis</h2>
+    <p>Ilustraciones originales en formato SVG con estética de escaneo holográfico / AR, diseñadas
+       específicamente para este proyecto (ver nota de diseño al pie de página).</p>
+  </div>
+  <div class="gallery">
+    <div class="gcard">
+      <div class="frame">
+        <svg viewBox="0 0 200 160" width="72%">
+          <g fill="none" stroke="#3fe8d8" stroke-width="1">
+            <circle cx="100" cy="80" r="55" opacity=".35"/>
+            <circle cx="100" cy="80" r="38" opacity=".55"/>
+            <circle cx="100" cy="80" r="20" opacity=".8"/>
+            <line x1="20" y1="80" x2="180" y2="80" opacity=".25"/>
+            <line x1="100" y1="10" x2="100" y2="150" opacity=".25"/>
+          </g>
+          <circle cx="76" cy="66" r="3" fill="#c9a66b"/>
+          <circle cx="122" cy="94" r="3" fill="#3fe8d8"/>
+          <circle cx="108" cy="50" r="3" fill="#e0625a"/>
+          <text x="100" y="140" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#9fb6bd">P(survive)=0.74</text>
+        </svg>
+      </div>
+      <div class="cap"><div class="k">Overlay 01</div><p>Radar de probabilidad — visualiza la salida del modelo de clasificación como un escaneo AR.</p></div>
+    </div>
+    <div class="gcard">
+      <div class="frame">
+        <svg viewBox="0 0 200 160" width="78%">
+          <g fill="none" stroke="#c9a66b" stroke-width="1">
+            <rect x="40" y="30" width="120" height="90" rx="4" opacity=".5"/>
+            <line x1="40" y1="52" x2="160" y2="52" opacity=".4"/>
+            <line x1="40" y1="74" x2="160" y2="74" opacity=".4"/>
+            <line x1="40" y1="96" x2="160" y2="96" opacity=".4"/>
+          </g>
+          <g font-family="JetBrains Mono" font-size="7.5" fill="#3fe8d8">
+            <text x="48" y="46">PCLASS · 1</text>
+            <text x="48" y="68">SEX · FEMALE</text>
+            <text x="48" y="90">AGE · 27</text>
+            <text x="48" y="112">FARE · £71.28</text>
+          </g>
+          <rect x="152" y="38" width="6" height="6" fill="#3fe8d8"/>
+        </svg>
+      </div>
+      <div class="cap"><div class="k">Overlay 02</div><p>Ficha de pasajero — tarjeta de datos estilo interfaz AR usada como entrada del modelo.</p></div>
+    </div>
+    <div class="gcard">
+      <div class="frame">
+        <svg viewBox="0 0 200 160" width="80%">
+          <g fill="none" stroke="#3fe8d8" stroke-width="1">
+            <path d="M30 120 L60 70 L90 100 L120 50 L150 90 L170 40" opacity=".8"/>
+          </g>
+          <g fill="#c9a66b">
+            <circle cx="60" cy="70" r="2.4"/><circle cx="120" cy="50" r="2.4"/><circle cx="170" cy="40" r="2.4"/>
+          </g>
+          <line x1="20" y1="130" x2="180" y2="130" stroke="#12405a"/>
+          <text x="100" y="146" text-anchor="middle" font-family="JetBrains Mono" font-size="8" fill="#9fb6bd">R² = 0.38</text>
+        </svg>
+      </div>
+      <div class="cap"><div class="k">Overlay 03</div><p>Curva de ajuste — proyección holográfica de valores reales vs. predichos en el modelo de tarifa.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STACK ============ -->
+<section id="stack">
+  <div class="section-head">
+    <div class="kicker">Tecnología</div>
+    <h2>Stack del proyecto</h2>
+  </div>
+  <div class="stack-row">
+    <div class="chip"><b>Python 3.11</b> · lenguaje base</div>
+    <div class="chip"><b>pandas / numpy</b> · manipulación de datos</div>
+    <div class="chip"><b>scikit-learn</b> · modelado</div>
+    <div class="chip"><b>matplotlib / seaborn</b> · visualización</div>
+    <div class="chip"><b>Streamlit</b> · despliegue interactivo</div>
+    <div class="chip"><b>Jupyter Notebook</b> · documentación CRISP-ML</div>
+    <div class="chip"><b>GitHub</b> · control de versiones</div>
+    <div class="chip"><b>Antigravity Agent</b> · flujo de trabajo asistido</div>
+  </div>
+</section>
+
+<!-- ============ DEPLOY ============ -->
+<section id="deploy">
+  <div class="section-head">
+    <div class="kicker">Cómo ejecutarlo</div>
+    <h2>De tu terminal a producción</h2>
+  </div>
+  <pre class="mono" style="background:var(--ocean-mid); border:1px solid var(--ocean-line); border-radius:6px; padding:26px; overflow-x:auto; font-size:.85rem; line-height:1.7; color:#bfe9e4;">
+git clone https://github.com/&lt;tu-usuario&gt;/titanic-ml-project.git
+cd titanic-ml-project
+
+pip install -r requirements.txt
+
+# 1. Entrenar / explorar el modelo
+jupyter notebook notebooks/titanic_crisp_ml.ipynb
+
+# 2. Levantar el dashboard
+streamlit run app/app.py</pre>
+</section>
+
+<footer>
+  <p>
+    Proyecto académico con fines educativos · Dataset histórico del Titanic (1912) ·
+    Ilustraciones AR de esta página: SVG vectorial original diseñado para este proyecto.
+  </p>
+  <div class="foot-links">
+    <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
+    <a href="../README.md">README ↗</a>
+    <a href="../notebooks/titanic_crisp_ml.ipynb">Notebook ↗</a>
+  </div>
+</footer>
+
+</body>
+</html>
